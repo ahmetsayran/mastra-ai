@@ -1,5 +1,5 @@
 import Elysia from 'elysia';
-import { aiController } from './ai';
+import { aiController, aiSharedController } from './ai';
 import authController from './auth/controller';
 import { fileLibraryAssetsController } from './file-library-assets';
 import { locationsController } from './locations';
@@ -19,6 +19,7 @@ const app = new Elysia()
   .use(companiesController)
   .use(fileLibraryAssetsController)
   .use(aiController)
+  .use(aiSharedController)
   .get(
     '/',
     () => ({

@@ -109,7 +109,7 @@ export default function FileLibraryAssetsIndexPage() {
   }, []);
 
   // CRUD operations
-  const handleUpload = async (file: File, type: import('@onlyjs/db/client').FileLibraryAssetType) => {
+  const handleUpload = async (file: File, type: import('@onlyjs/db/enums').FileLibraryAssetType) => {
     await createFileLibraryAsset({ file, type });
   };
 

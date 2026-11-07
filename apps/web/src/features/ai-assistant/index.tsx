@@ -5,75 +5,164 @@ import { Search } from '#/components/search';
 import { ThemeSwitch } from '#/components/theme-switch';
 import { Button } from '#/components/ui/button';
 import { Textarea } from '#/components/ui/textarea';
-import { api } from '#/lib/api';
-import { cn } from '#/lib/utils';
-import { IconRefresh, IconSend } from '@tabler/icons-react';
-import { useMutation } from '@tanstack/react-query';
+import { env } from '#/config/env';
+import { IconLock, IconRefresh, IconSend } from '@tabler/icons-react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useSearch } from '@tanstack/react-router';
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
-import ReactMarkdown, { type Components } from 'react-markdown';
-import remarkGfm from 'remark-gfm';
-
-type ChatMessage = {
-  role: 'user' | 'assistant';
-  text: string;
-};
-
-// Asistan yanıtları Markdown olarak gelir (kalın yazı, liste, kod vb.)
-const markdownComponents: Components = {
-  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-  ul: ({ children }) => <ul className="mb-2 list-disc pl-5 last:mb-0">{children}</ul>,
-  ol: ({ children }) => <ol className="mb-2 list-decimal pl-5 last:mb-0">{children}</ol>,
-  li: ({ children }) => <li className="mb-1">{children}</li>,
-  a: ({ children, href }) => (
-    <a href={href} target="_blank" rel="noreferrer" className="underline underline-offset-2">
-      {children}
-    </a>
-  ),
-  code: ({ children }) => (
-    <code className="rounded bg-background px-1 py-0.5 font-mono text-xs">{children}</code>
-  ),
-  pre: ({ children }) => (
-    <pre className="mb-2 overflow-x-auto rounded bg-background p-3 last:mb-0 [&>code]:bg-transparent [&>code]:p-0">
-      {children}
-    </pre>
-  ),
-};
+import { type ChatMessage, THREADS_QUERY_KEY, fetchThreadMessages, useThreads } from './api';
+import { ChatBubble } from './chat-bubble';
 
 export function AiAssistantPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [threadId, setThreadId] = useState<string>();
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [error, setError] = useState<string>();
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const chatMutation = useMutation({
-    mutationFn: async (message: string) => {
-      const response = await api.ai.chat.post({ message, threadId });
+  const abortRef = useRef<AbortController | null>(null);
+  // Şu an ekranda açık olan sohbet (URL'deki ?thread= ile eşleşir)
+  const activeThreadRef = useRef<string>();
+  // Eski bir yükleme geç biterse yeni sohbetin ekranını ezmesin diye her yüklemeye numara verilir
+  const loadIdRef = useRef(0);
 
-      if (response.error) {
-        throw new Error(
-          (response.error.value as { message?: string })?.message ?? 'Asistandan yanıt alınamadı',
-        );
+  const { thread } = useSearch({ from: '/_authenticated/ai-assistant/' });
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { data: threads } = useThreads();
+  // Kilitli sohbete yeni mesaj yazılamaz (kilit soldaki "..." menüsünden açılır)
+  const isLocked = !!threadId && !!threads?.find((thread) => thread.id === threadId)?.locked;
+
+  // Sayfadan ayrılınca süren yanıtı iptal et
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  // Sidebar'dan başka bir sohbet seçilince (URL değişince) o sohbetin mesajlarını yükle
+  useEffect(() => {
+    // Yeni sohbetin id'si URL'ye yazıldığında zaten o sohbetteyiz, tekrar yüklemeye gerek yok
+    if (thread === activeThreadRef.current) return;
+
+    abortRef.current?.abort();
+    loadIdRef.current += 1;
+    activeThreadRef.current = thread;
+    setThreadId(thread);
+    setError(undefined);
+    setIsStreaming(false);
+
+    if (!thread) {
+      setMessages([]);
+      setIsLoadingHistory(false);
+      return;
+    }
+
+    const loadId = ++loadIdRef.current;
+    const isCurrent = () => loadId === loadIdRef.current;
+
+    setIsLoadingHistory(true);
+    fetchThreadMessages(thread)
+      .then((history) => isCurrent() && setMessages(history))
+      .catch((err: unknown) => {
+        if (!isCurrent()) return;
+        setMessages([]);
+        setError(err instanceof Error ? err.message : 'Sohbet yüklenemedi');
+      })
+      .finally(() => isCurrent() && setIsLoadingHistory(false));
+  }, [thread]);
+
+  // Yanıt parça parça gelir: her satır bir JSON olayıdır (thread, text, done, error)
+  const streamReply = async (message: string) => {
+    const controller = new AbortController();
+    abortRef.current = controller;
+    setIsStreaming(true);
+    setError(undefined);
+
+    const appendToLast = (text: string) =>
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        return [...prev.slice(0, -1), { ...last, text: last.text + text }];
+      });
+
+    try {
+      const response = await fetch(`${env.apiUrl}/ai/chat/stream`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message, threadId }),
+        signal: controller.signal,
+      });
+
+      if (!response.ok || !response.body) {
+        const body = (await response.json().catch(() => null)) as { message?: string } | null;
+        throw new Error(body?.message ?? 'Asistandan yanıt alınamadı');
       }
 
-      return response.data as { text: string; threadId: string };
-    },
-    onSuccess: (data) => {
-      setThreadId(data.threadId);
-      setMessages((prev) => [...prev, { role: 'assistant', text: data.text }]);
-    },
-  });
+      const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += value;
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const event = JSON.parse(line) as
+            | { type: 'thread'; threadId: string }
+            | { type: 'text'; text: string }
+            | { type: 'done' }
+            | { type: 'error'; message: string };
+
+          if (event.type === 'thread') {
+            // Yeni sohbetin id'sini URL'ye yaz, sayfa yenilense de aynı sohbet açılsın
+            activeThreadRef.current = event.threadId;
+            setThreadId(event.threadId);
+            void navigate({
+              to: '/ai-assistant',
+              search: { thread: event.threadId },
+              replace: true,
+            });
+          } else if (event.type === 'text') appendToLast(event.text);
+          else if (event.type === 'error') throw new Error(event.message);
+        }
+      }
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setError(err instanceof Error ? err.message : 'Asistandan yanıt alınamadı');
+    } finally {
+      // Bu arada başka sohbete geçildiyse yeni sohbetin ekranına dokunma
+      if (abortRef.current !== controller) return;
+
+      void queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEY });
+      // Boş kalan asistan balonunu kaldır
+      setMessages((prev) =>
+        prev[prev.length - 1]?.role === 'assistant' && !prev[prev.length - 1].text
+          ? prev.slice(0, -1)
+          : prev,
+      );
+      setIsStreaming(false);
+    }
+  };
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, chatMutation.isPending]);
+  }, [messages, isStreaming]);
 
   const send = () => {
     const message = input.trim();
-    if (!message || chatMutation.isPending) return;
+    if (!message || isStreaming || isLocked) return;
 
-    setMessages((prev) => [...prev, { role: 'user', text: message }]);
+    // Asistan balonu boş başlar, yanıt geldikçe dolar
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', text: message },
+      { role: 'assistant', text: '' },
+    ]);
     setInput('');
-    chatMutation.mutate(message);
+    void streamReply(message);
   };
 
   const handleSubmit = (event: FormEvent) => {
@@ -89,9 +178,13 @@ export function AiAssistantPage() {
   };
 
   const resetChat = () => {
+    abortRef.current?.abort();
+    activeThreadRef.current = undefined;
     setMessages([]);
     setThreadId(undefined);
-    chatMutation.reset();
+    setError(undefined);
+    setIsStreaming(false);
+    void navigate({ to: '/ai-assistant', search: {} });
   };
 
   return (
@@ -107,8 +200,16 @@ export function AiAssistantPage() {
       <Main fixed>
         <div className="mb-4 flex flex-wrap items-center justify-between gap-x-4 space-y-2">
           <div>
-            <h2 className="text-2xl font-bold tracking-tight">AI Asistan</h2>
+            <h2 className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+              AI Asistan
+              {isLocked && (
+                <IconLock className="size-5 text-muted-foreground" aria-label="Kilitli" />
+              )}
+            </h2>
             <p className="text-muted-foreground">Mastra ile çalışan asistana soru sorun.</p>
+            {threadId && (
+              <p className="mt-1 font-mono text-xs text-muted-foreground">Thread ID: {threadId}</p>
+            )}
           </div>
           <Button variant="outline" onClick={resetChat} disabled={messages.length === 0}>
             <IconRefresh className="mr-2 size-4" />
@@ -120,35 +221,21 @@ export function AiAssistantPage() {
           <div className="flex-1 space-y-4 overflow-y-auto p-4">
             {messages.length === 0 && (
               <div className="flex h-full items-center justify-center">
-                <p className="text-muted-foreground">Sohbete başlamak için bir mesaj yazın.</p>
+                <p className="text-muted-foreground">
+                  {isLoadingHistory
+                    ? 'Sohbet yükleniyor...'
+                    : 'Sohbete başlamak için bir mesaj yazın.'}
+                </p>
               </div>
             )}
 
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}
-              >
-                <div
-                  className={cn(
-                    'max-w-[80%] rounded-lg px-4 py-2 text-sm',
-                    message.role === 'user'
-                      ? 'whitespace-pre-wrap bg-primary text-primary-foreground'
-                      : 'bg-muted',
-                  )}
-                >
-                  {message.role === 'user' ? (
-                    message.text
-                  ) : (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                      {message.text}
-                    </ReactMarkdown>
-                  )}
-                </div>
-              </div>
-            ))}
+            {messages.map((message, index) =>
+              message.role === 'assistant' && !message.text ? null : (
+                <ChatBubble key={index} message={message} />
+              ),
+            )}
 
-            {chatMutation.isPending && (
+            {isStreaming && !messages[messages.length - 1]?.text && (
               <div className="flex justify-start">
                 <div className="rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
                   Yazıyor...
@@ -156,9 +243,7 @@ export function AiAssistantPage() {
               </div>
             )}
 
-            {chatMutation.isError && (
-              <p className="text-center text-sm text-destructive">{chatMutation.error.message}</p>
-            )}
+            {error && <p className="text-center text-sm text-destructive">{error}</p>}
 
             <div ref={bottomRef} />
           </div>
@@ -168,11 +253,16 @@ export function AiAssistantPage() {
               value={input}
               onChange={(event) => setInput(event.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Mesajınızı yazın... (Enter ile gönderin, Shift+Enter ile yeni satır)"
+              placeholder={
+                isLocked
+                  ? 'Bu sohbet kilitli. Yazmak için kilidi açın (soldaki "..." menüsü)'
+                  : 'Mesajınızı yazın... (Enter ile gönderin, Shift+Enter ile yeni satır)'
+              }
               className="max-h-40 min-h-10 resize-none"
               rows={1}
+              disabled={isLocked}
             />
-            <Button type="submit" disabled={!input.trim() || chatMutation.isPending}>
+            <Button type="submit" disabled={!input.trim() || isStreaming || isLocked}>
               <IconSend className="size-4" />
               <span className="sr-only">Gönder</span>
             </Button>

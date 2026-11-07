@@ -1,6 +1,6 @@
 import { api } from '#/lib/api';
 import type { FileLibraryAssetIndexQuery } from '#backend/modules/file-library-assets/types';
-import { FileLibraryAssetType } from '@onlyjs/db/client';
+import { FileLibraryAssetType } from '@onlyjs/db/enums';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { fileLibraryAssetKeys, fileLibraryAssetsListQueryOptions } from '../queries/file-library-asset-queries';
 

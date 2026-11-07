@@ -1,4 +1,4 @@
-import { NavGroup } from '#/components/layout/nav-group';
+import { ChatHistory } from '#/components/layout/chat-history';
 import { NavUser } from '#/components/layout/nav-user';
 import {
   Sidebar,
@@ -7,18 +7,13 @@ import {
   SidebarHeader,
   SidebarRail,
 } from '#/components/ui/sidebar';
-import { systemAdminSidebarData } from './data/system-admin-sidebar-data';
 
 export function SystemAdminSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   return (
     <Sidebar collapsible="icon" variant="floating" {...props}>
-      <SidebarHeader>
-        {/* System Admin Header - can add logo or title here */}
-      </SidebarHeader>
+      <SidebarHeader>{/* System Admin Header - can add logo or title here */}</SidebarHeader>
       <SidebarContent>
-        {systemAdminSidebarData.navGroups.map((props) => (
-          <NavGroup key={props.title} {...props} />
-        ))}
+        <ChatHistory />
       </SidebarContent>
       <SidebarFooter>
         <NavUser />
