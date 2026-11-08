@@ -59,6 +59,16 @@ export const useThreads = () =>
     queryFn: async () => (await aiFetch<{ threads: ChatThread[] }>('/threads')).threads,
   });
 
+// Mesaj içeriğinde arama: eşleşen sohbetlerin thread ID'leri gelir (en az 2 harf)
+export const useMessageSearch = (query: string) =>
+  useQuery({
+    queryKey: [...THREADS_QUERY_KEY, 'search', query],
+    queryFn: async () =>
+      (await aiFetch<{ ids: string[] }>(`/threads/search?q=${encodeURIComponent(query)}`)).ids,
+    enabled: query.length >= 2,
+    staleTime: 30_000,
+  });
+
 export type SharedThread = { title: string; updatedAt: string; messages: ChatMessage[] };
 
 // Giriş gerektirmez: paylaşım linkindeki gizli parça ile sohbet okunur

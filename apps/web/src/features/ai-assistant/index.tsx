@@ -6,7 +6,13 @@ import { ThemeSwitch } from '#/components/theme-switch';
 import { Button } from '#/components/ui/button';
 import { Textarea } from '#/components/ui/textarea';
 import { env } from '#/config/env';
-import { IconLock, IconRefresh, IconSend } from '@tabler/icons-react';
+import {
+  IconDownload,
+  IconLock,
+  IconPlayerStopFilled,
+  IconRefresh,
+  IconSend,
+} from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
@@ -134,16 +140,16 @@ export function AiAssistantPage() {
       setError(err instanceof Error ? err.message : 'Asistandan yanıt alınamadı');
     } finally {
       // Bu arada başka sohbete geçildiyse yeni sohbetin ekranına dokunma
-      if (abortRef.current !== controller) return;
-
-      void queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEY });
-      // Boş kalan asistan balonunu kaldır
-      setMessages((prev) =>
-        prev[prev.length - 1]?.role === 'assistant' && !prev[prev.length - 1].text
-          ? prev.slice(0, -1)
-          : prev,
-      );
-      setIsStreaming(false);
+      if (abortRef.current === controller) {
+        void queryClient.invalidateQueries({ queryKey: THREADS_QUERY_KEY });
+        // Boş kalan asistan balonunu kaldır
+        setMessages((prev) =>
+          prev[prev.length - 1]?.role === 'assistant' && !prev[prev.length - 1].text
+            ? prev.slice(0, -1)
+            : prev,
+        );
+        setIsStreaming(false);
+      }
     }
   };
 
@@ -164,6 +170,27 @@ export function AiAssistantPage() {
     setInput('');
     void streamReply(message);
   };
+
+  // Ekrandaki sohbeti .md dosyası olarak indirir (tarayıcıda oluşturulur, sunucuya gitmez)
+  const exportMarkdown = () => {
+    const title = threads?.find((item) => item.id === threadId)?.title ?? 'Sohbet';
+    const body = messages
+      .filter((message) => message.text)
+      .map(
+        (message) => `## ${message.role === 'user' ? 'Kullanıcı' : 'Asistan'}\n\n${message.text}`,
+      )
+      .join('\n\n');
+    const blob = new Blob([`# ${title}\n\n${body}\n`], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${title.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'sohbet'}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Süren yanıtı yarıda keser; o ana kadar gelen metin ekranda kalır
+  const stop = () => abortRef.current?.abort();
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
@@ -211,10 +238,20 @@ export function AiAssistantPage() {
               <p className="mt-1 font-mono text-xs text-muted-foreground">Thread ID: {threadId}</p>
             )}
           </div>
-          <Button variant="outline" onClick={resetChat} disabled={messages.length === 0}>
-            <IconRefresh className="mr-2 size-4" />
-            Yeni sohbet
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={exportMarkdown}
+              disabled={messages.length === 0 || isStreaming}
+            >
+              <IconDownload className="mr-2 size-4" />
+              Markdown indir
+            </Button>
+            <Button variant="outline" onClick={resetChat} disabled={messages.length === 0}>
+              <IconRefresh className="mr-2 size-4" />
+              Yeni sohbet
+            </Button>
+          </div>
         </div>
 
         <div className="flex min-h-0 flex-1 flex-col rounded-lg border">
@@ -262,10 +299,17 @@ export function AiAssistantPage() {
               rows={1}
               disabled={isLocked}
             />
-            <Button type="submit" disabled={!input.trim() || isStreaming || isLocked}>
-              <IconSend className="size-4" />
-              <span className="sr-only">Gönder</span>
-            </Button>
+            {isStreaming ? (
+              <Button type="button" variant="outline" onClick={stop}>
+                <IconPlayerStopFilled className="size-4" />
+                <span className="sr-only">Durdur</span>
+              </Button>
+            ) : (
+              <Button type="submit" disabled={!input.trim() || isLocked}>
+                <IconSend className="size-4" />
+                <span className="sr-only">Gönder</span>
+              </Button>
+            )}
           </form>
         </div>
       </Main>

@@ -6,6 +6,7 @@ import {
   aiSharedThreadDto,
   aiThreadDeleteDto,
   aiThreadMessagesDto,
+  aiThreadSearchDto,
   aiThreadUpdateDto,
   aiThreadsDto,
 } from './dtos';
@@ -29,6 +30,11 @@ const app = new Elysia({ prefix: '/ai', tags: ['AI'] })
     '/threads',
     async ({ user }) => ({ threads: await AiService.listThreads(user.id) }),
     aiThreadsDto,
+  )
+  .get(
+    '/threads/search',
+    async ({ query, user }) => AiService.searchThreads(user.id, query.q),
+    aiThreadSearchDto,
   )
   .get(
     '/threads/:threadId/messages',

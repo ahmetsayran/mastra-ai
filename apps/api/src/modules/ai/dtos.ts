@@ -53,6 +53,18 @@ export const aiThreadsDto = {
   },
 } satisfies ControllerHook;
 
+export const aiThreadSearchDto = {
+  query: t.Object({ q: t.String({ minLength: 2, maxLength: 100 }) }),
+  response: {
+    200: t.Object({ ids: t.Array(t.String()) }),
+    502: errorResponseDto[502],
+  },
+  detail: {
+    summary: 'Sohbetlerde arama',
+    description: "Mesaj içeriğinde arama yapar, eşleşen thread ID'lerini döndürür",
+  },
+} satisfies ControllerHook;
+
 const aiThreadParams = t.Object({ threadId: t.String({ pattern: '^[A-Za-z0-9_-]{1,64}$' }) });
 
 export const aiThreadMessagesDto = {

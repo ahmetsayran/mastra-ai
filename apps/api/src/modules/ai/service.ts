@@ -131,6 +131,43 @@ export abstract class AiService {
     }
   }
 
+  // Mesaj metninde arama yapar; sadece kullanıcının kendi sohbetlerine bakar, eşleşen thread ID'lerini döndürür
+  static async searchThreads(userId: string, query: string) {
+    const needle = query.trim().toLocaleLowerCase('tr');
+    if (!needle) return { ids: [] as string[] };
+
+    try {
+      const { threads } = await client.listMemoryThreads({
+        agentId: ASSISTANT_AGENT_ID,
+        resourceId: userId,
+        perPage: 100,
+      });
+
+      const ids: string[] = [];
+      // Mastra'yı yormamak için sohbetler 10'arlı gruplar halinde taranır
+      for (let i = 0; i < threads.length; i += 10) {
+        await Promise.all(
+          threads.slice(i, i + 10).map(async (thread) => {
+            const result = await client.listThreadMessages(thread.id, {
+              agentId: ASSISTANT_AGENT_ID,
+              perPage: 200,
+            });
+            const found = (result.messages as MemoryMessage[]).some(
+              (message) =>
+                (message.role === 'user' || message.role === 'assistant') &&
+                toText(message).toLocaleLowerCase('tr').includes(needle),
+            );
+            if (found) ids.push(thread.id.slice(userId.length + 1));
+          }),
+        );
+      }
+      return { ids };
+    } catch (error) {
+      console.error('Error in AiService.searchThreads:', error);
+      throw new BadGatewayException('Sohbetlerde arama yapılamadı');
+    }
+  }
+
   // Başlığı olmayan eski sohbetler için ilk kullanıcı mesajından başlık üretir
   private static async firstMessageTitle(memoryThreadId: string) {
     try {

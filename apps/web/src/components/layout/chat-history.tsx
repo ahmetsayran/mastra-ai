@@ -41,6 +41,7 @@ import {
   THREADS_QUERY_KEY,
   deleteThread,
   updateThread,
+  useMessageSearch,
   useThreads,
 } from '#/features/ai-assistant/api';
 import {
@@ -63,7 +64,7 @@ import {
 } from '@tabler/icons-react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link, useLocation, useNavigate } from '@tanstack/react-router';
-import { type FormEvent, useState } from 'react';
+import { type FormEvent, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 
 const shareUrl = (token: string) => `${window.location.origin}/shared/${token}`;
@@ -176,14 +177,26 @@ export function ChatHistory() {
 
   const sharing = threads?.find((thread) => thread.id === sharingId) ?? null;
 
-  // Arama sohbet adında ve thread ID'sinde yapılır (büyük/küçük harf fark etmez)
+  // Arama sohbet adında, thread ID'sinde ve mesaj içeriğinde yapılır (büyük/küçük harf fark etmez)
   const normalizedQuery = query.trim().toLocaleLowerCase('tr');
   const isSearching = normalizedQuery.length > 0;
+
+  // Her tuşta sunucuya gitmesin diye mesaj araması yazma durunca (400 ms) başlar
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(normalizedQuery), 400);
+    return () => clearTimeout(timer);
+  }, [normalizedQuery]);
+  const { data: messageMatches, isFetching: isSearchingMessages } =
+    useMessageSearch(debouncedQuery);
+  const matchedIds = new Set(debouncedQuery === normalizedQuery ? messageMatches : []);
+
   const visible =
     threads?.filter(
       (thread) =>
         !isSearching ||
-        `${thread.title} ${thread.id}`.toLocaleLowerCase('tr').includes(normalizedQuery),
+        `${thread.title} ${thread.id}`.toLocaleLowerCase('tr').includes(normalizedQuery) ||
+        matchedIds.has(thread.id),
     ) ?? [];
   const pinned = visible.filter((thread) => thread.pinned && !thread.archived);
   const regular = visible.filter((thread) => !thread.pinned && !thread.archived);
@@ -321,7 +334,9 @@ export function ChatHistory() {
           <SidebarMenu>
             {regular.map(renderItem)}
             {threads && isSearching && visible.length === 0 && (
-              <p className="px-2 py-1 text-xs text-muted-foreground">Eşleşen sohbet bulunamadı.</p>
+              <p className="px-2 py-1 text-xs text-muted-foreground">
+                {isSearchingMessages ? 'Mesajlarda aranıyor...' : 'Eşleşen sohbet bulunamadı.'}
+              </p>
             )}
             {threads && !isSearching && regular.length === 0 && (
               <p className="px-2 py-1 text-xs text-muted-foreground">
