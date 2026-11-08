@@ -34,7 +34,7 @@ function CodeBlock({ children }: { children?: ReactNode }) {
     <div className="group relative mb-2 last:mb-0">
       <pre
         ref={preRef}
-        className="overflow-x-auto rounded bg-background p-3 [&>code]:bg-transparent [&>code]:p-0"
+        className="overflow-x-auto rounded border bg-muted p-3 [&>code]:bg-transparent [&>code]:p-0"
       >
         {children}
       </pre>
@@ -62,7 +62,7 @@ const markdownComponents: Components = {
     </a>
   ),
   code: ({ children }) => (
-    <code className="rounded bg-background px-1 py-0.5 font-mono text-xs">{children}</code>
+    <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{children}</code>
   ),
   pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
 };
@@ -94,7 +94,7 @@ export function ChatBubble({
         <div
           className={cn(
             'rounded-lg px-4 py-2 text-sm',
-            isUser ? 'whitespace-pre-wrap bg-primary text-primary-foreground' : 'bg-muted',
+            isUser ? 'whitespace-pre-wrap bg-secondary text-secondary-foreground' : 'px-0',
           )}
         >
           {isUser ? (
