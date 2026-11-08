@@ -1,10 +1,19 @@
 import { cn } from '#/lib/utils';
-import { IconCheck, IconCopy } from '@tabler/icons-react';
+import {
+  IconCheck,
+  IconCopy,
+  IconPencil,
+  IconRefresh,
+  IconThumbDown,
+  IconThumbDownFilled,
+  IconThumbUp,
+  IconThumbUpFilled,
+} from '@tabler/icons-react';
 import { type ReactNode, useRef, useState } from 'react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { toast } from 'sonner';
-import type { ChatMessage } from './api';
+import type { ChatMessage, Feedback } from './api';
 
 // Kod bloğu: sağ üstteki buton bloğun metnini panoya kopyalar
 function CodeBlock({ children }: { children?: ReactNode }) {
@@ -58,24 +67,98 @@ const markdownComponents: Components = {
   pre: ({ children }) => <CodeBlock>{children}</CodeBlock>,
 };
 
-// Sohbet balonu: kullanıcı mesajı düz metin, asistan yanıtı Markdown olarak gösterilir
-export function ChatBubble({ message }: { message: ChatMessage }) {
+// Sohbet balonu: kullanıcı mesajı düz metin, asistan yanıtı Markdown olarak gösterilir.
+// onEdit: kullanıcı mesajını düzenle (üzerine gelince çıkar), onRegenerate: son asistan yanıtını yeniden üret,
+// onFeedback: asistan yanıtını beğen / beğenme (aynı butona tekrar basınca geri alınır)
+export function ChatBubble({
+  message,
+  onEdit,
+  onRegenerate,
+  onFeedback,
+}: {
+  message: ChatMessage;
+  onEdit?: () => void;
+  onRegenerate?: () => void;
+  onFeedback?: (value: Feedback | null) => void;
+}) {
+  const isUser = message.role === 'user';
+
   return (
-    <div className={cn('flex', message.role === 'user' ? 'justify-end' : 'justify-start')}>
+    <div className={cn('flex', isUser ? 'justify-end' : 'justify-start')}>
       <div
         className={cn(
-          'max-w-[80%] rounded-lg px-4 py-2 text-sm',
-          message.role === 'user'
-            ? 'whitespace-pre-wrap bg-primary text-primary-foreground'
-            : 'bg-muted',
+          'group flex max-w-[80%] flex-col gap-1',
+          isUser ? 'items-end' : 'items-start',
         )}
       >
-        {message.role === 'user' ? (
-          message.text
-        ) : (
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-            {message.text}
-          </ReactMarkdown>
+        <div
+          className={cn(
+            'rounded-lg px-4 py-2 text-sm',
+            isUser ? 'whitespace-pre-wrap bg-primary text-primary-foreground' : 'bg-muted',
+          )}
+        >
+          {isUser ? (
+            message.text
+          ) : (
+            <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+              {message.text}
+            </ReactMarkdown>
+          )}
+        </div>
+
+        {isUser && onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex items-center gap-1 text-xs text-muted-foreground opacity-0 transition-opacity hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100"
+          >
+            <IconPencil className="size-3.5" />
+            Düzenle
+          </button>
+        )}
+        {!isUser && (onFeedback || onRegenerate) && (
+          <div className="flex items-center gap-3 text-muted-foreground">
+            {onFeedback && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="Beğen"
+                  aria-pressed={message.feedback === 'up'}
+                  onClick={() => onFeedback(message.feedback === 'up' ? null : 'up')}
+                  className="hover:text-foreground"
+                >
+                  {message.feedback === 'up' ? (
+                    <IconThumbUpFilled className="size-3.5 text-foreground" />
+                  ) : (
+                    <IconThumbUp className="size-3.5" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  aria-label="Beğenme"
+                  aria-pressed={message.feedback === 'down'}
+                  onClick={() => onFeedback(message.feedback === 'down' ? null : 'down')}
+                  className="hover:text-foreground"
+                >
+                  {message.feedback === 'down' ? (
+                    <IconThumbDownFilled className="size-3.5 text-foreground" />
+                  ) : (
+                    <IconThumbDown className="size-3.5" />
+                  )}
+                </button>
+              </div>
+            )}
+            {onRegenerate && (
+              <button
+                type="button"
+                onClick={onRegenerate}
+                className="flex items-center gap-1 text-xs hover:text-foreground"
+              >
+                <IconRefresh className="size-3.5" />
+                Yeniden üret
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>

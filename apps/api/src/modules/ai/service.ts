@@ -19,6 +19,7 @@ const toTitle = (text: string) => {
 
 // Mastra mesaj içeriğini opak döndürür, bu yüzden ihtiyacımız olan kısmı burada tanımlıyoruz
 type MemoryMessage = {
+  id: string;
   role: string;
   content: { parts?: { type: string; text?: string }[] };
 };
@@ -40,7 +41,32 @@ const readFlags = (metadata: ThreadMetadata | null | undefined) => ({
   shareToken: typeof metadata?.['shareToken'] === 'string' ? metadata['shareToken'] : null,
 });
 
+// Geri bildirim sohbet metadata'sında, ekrandaki mesaj sırasına göre tutulur: { "3": "up" }
+type Feedback = 'up' | 'down';
+const readFeedback = (metadata: ThreadMetadata | null | undefined) => {
+  const raw = metadata?.['feedback'];
+  return raw && typeof raw === 'object' ? { ...(raw as Record<string, Feedback>) } : {};
+};
+
+// Ekranda görünen mesajlar: sadece metni olan kullanıcı ve asistan mesajları
+const isVisible = (message: MemoryMessage) =>
+  (message.role === 'user' || message.role === 'assistant') && !!toText(message);
+
 const LOCKED_MESSAGE = 'Sohbet kilitli. Önce kilidini açın';
+// Asistan araç kullanırken kullanıcıya gösterilen kısa durum yazıları
+const TOOL_STATUS: Record<string, string> = {
+  get_current_time: 'Saat bakılıyor...',
+  calculate: 'Hesaplanıyor...',
+};
+
+const ASSISTANT_DOWN_MESSAGE = 'Asistan şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin';
+
+// Mastra sunucusu kapalı / erişilemez mi? (bağlantı reddedildi, zaman aşımı vb.)
+const UNREACHABLE_CODES = new Set(['ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT', 'ENOTFOUND']);
+const isUnreachable = (error: unknown) => {
+  const { code, message } = (error ?? {}) as { code?: string; message?: string };
+  return UNREACHABLE_CODES.has(code ?? '') || /fetch failed|Unable to connect/i.test(message ?? '');
+};
 
 const client = new MastraClient({
   baseUrl: process.env.MASTRA_URL || 'http://localhost:4111',
@@ -104,7 +130,7 @@ export abstract class AiService {
       return new NotFoundException('Sohbet bulunamadı');
     }
     console.error(fallbackMessage, error);
-    return new BadGatewayException(fallbackMessage);
+    return new BadGatewayException(isUnreachable(error) ? ASSISTANT_DOWN_MESSAGE : fallbackMessage);
   }
 
   // Kullanıcının geçmiş sohbetlerini, en son konuşulan en üstte olacak şekilde döndürür
@@ -127,7 +153,9 @@ export abstract class AiService {
       );
     } catch (error) {
       console.error('Error in AiService.listThreads:', error);
-      throw new BadGatewayException('Sohbet geçmişi alınamadı');
+      throw new BadGatewayException(
+        isUnreachable(error) ? ASSISTANT_DOWN_MESSAGE : 'Sohbet geçmişi alınamadı',
+      );
     }
   }
 
@@ -164,7 +192,9 @@ export abstract class AiService {
       return { ids };
     } catch (error) {
       console.error('Error in AiService.searchThreads:', error);
-      throw new BadGatewayException('Sohbetlerde arama yapılamadı');
+      throw new BadGatewayException(
+        isUnreachable(error) ? ASSISTANT_DOWN_MESSAGE : 'Sohbetlerde arama yapılamadı',
+      );
     }
   }
 
@@ -188,7 +218,8 @@ export abstract class AiService {
     const memoryThreadId = AiService.memoryThreadId(params.userId, params.threadId);
 
     try {
-      await AiService.assertOwnThread(memoryThreadId, params.userId);
+      const thread = await AiService.assertOwnThread(memoryThreadId, params.userId);
+      const feedback = readFeedback(thread.metadata as ThreadMetadata | null);
 
       const result = await client.listThreadMessages(memoryThreadId, {
         agentId: ASSISTANT_AGENT_ID,
@@ -198,13 +229,55 @@ export abstract class AiService {
       const messages = result.messages as MemoryMessage[];
 
       return {
-        messages: messages
-          .filter((message) => message.role === 'user' || message.role === 'assistant')
-          .map((message) => ({ role: message.role as 'user' | 'assistant', text: toText(message) }))
-          .filter((message) => message.text),
+        messages: messages.filter(isVisible).map((message, index) => ({
+          role: message.role as 'user' | 'assistant',
+          text: toText(message),
+          ...(message.role === 'assistant' && feedback[index] ? { feedback: feedback[index] } : {}),
+        })),
       };
     } catch (error) {
       throw AiService.toHttpError(error, 'Sohbet yüklenemedi');
+    }
+  }
+
+  // Asistan yanıtını beğenir / beğenmez; value null ise geri bildirimi kaldırır. Kilitli sohbette de verilebilir
+  static async setFeedback(params: {
+    userId: string;
+    threadId: string;
+    index: number;
+    value: Feedback | null;
+  }) {
+    const memoryThreadId = AiService.memoryThreadId(params.userId, params.threadId);
+
+    try {
+      const thread = await AiService.assertOwnThread(memoryThreadId, params.userId);
+
+      const result = await client.listThreadMessages(memoryThreadId, {
+        agentId: ASSISTANT_AGENT_ID,
+        orderBy: { field: 'createdAt', direction: 'ASC' },
+        perPage: 200,
+      });
+      const target = (result.messages as MemoryMessage[]).filter(isVisible)[params.index];
+      if (target?.role !== 'assistant') {
+        throw new BadRequestException('Geri bildirim sadece asistan yanıtlarına verilebilir');
+      }
+
+      const metadata = { ...((thread.metadata as ThreadMetadata | null) ?? {}) };
+      const feedback = readFeedback(metadata);
+      if (params.value) feedback[params.index] = params.value;
+      else delete feedback[params.index];
+
+      if (Object.keys(feedback).length > 0) metadata['feedback'] = feedback;
+      else delete metadata['feedback'];
+
+      await client
+        .getMemoryThread({ threadId: memoryThreadId, agentId: ASSISTANT_AGENT_ID })
+        .update({ title: thread.title ?? '', metadata });
+
+      return { success: true };
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw AiService.toHttpError(error, 'Geri bildirim kaydedilemedi');
     }
   }
 
@@ -313,11 +386,73 @@ export abstract class AiService {
     }
   }
 
+  // Ekrandaki (görünen) mesaj listesinde `index` sırasındaki kullanıcı mesajını ve sonrasındaki her şeyi hafızadan siler.
+  // Yeniden üret ve mesajı düzenle bunu kullanır; sadece kullanıcı mesajından başlanabilir
+  private static async truncateFrom(params: { userId: string; threadId: string; index: number }) {
+    const memoryThreadId = AiService.memoryThreadId(params.userId, params.threadId);
+
+    try {
+      const thread = await AiService.assertOwnThread(memoryThreadId, params.userId);
+
+      const result = await client.listThreadMessages(memoryThreadId, {
+        agentId: ASSISTANT_AGENT_ID,
+        orderBy: { field: 'createdAt', direction: 'ASC' },
+        perPage: 200,
+      });
+      const messages = result.messages as MemoryMessage[];
+
+      const visible = messages.filter(isVisible);
+      // Yanıt yarıda durdurulursa Mastra o mesaj çiftini kaydetmez: son sıra henüz yoksa silinecek bir şey de yoktur
+      if (params.index === visible.length) return;
+
+      const target = visible[params.index];
+      if (!target || target.role !== 'user') {
+        throw new BadRequestException('Silinecek mesaj bulunamadı');
+      }
+
+      const ids = messages.slice(messages.indexOf(target)).map((message) => message.id);
+      const memoryThread = client.getMemoryThread({
+        threadId: memoryThreadId,
+        agentId: ASSISTANT_AGENT_ID,
+      });
+      await memoryThread.deleteMessages(ids, { agentId: ASSISTANT_AGENT_ID });
+
+      // Silinen yanıtların geri bildirimi de silinir (yeni yanıt temiz başlar)
+      const metadata = { ...((thread.metadata as ThreadMetadata | null) ?? {}) };
+      const feedback = readFeedback(metadata);
+      const kept = Object.fromEntries(
+        Object.entries(feedback).filter(([key]) => Number(key) < params.index),
+      );
+      if (Object.keys(kept).length !== Object.keys(feedback).length) {
+        if (Object.keys(kept).length > 0) metadata['feedback'] = kept;
+        else delete metadata['feedback'];
+        await memoryThread.update({ title: thread.title ?? '', metadata });
+      }
+    } catch (error) {
+      if (error instanceof BadRequestException) throw error;
+      throw AiService.toHttpError(error, 'Mesajlar silinemedi');
+    }
+  }
+
   // Yanıtı parça parça döndürür. Her satır bir JSON olayıdır (NDJSON):
-  // {type:'thread'} -> {type:'text'} ... -> {type:'done'} veya {type:'error'}
-  static async chatStream(params: { message: string; threadId?: string; userId: string }) {
+  // {type:'thread'} -> {type:'status'}? -> {type:'text'} ... -> {type:'done'} veya {type:'error'}
+  static async chatStream(params: {
+    message: string;
+    threadId?: string;
+    userId: string;
+    truncateFrom?: number;
+  }) {
     // Akış başlamadan önce kontrol edilir, böylece kilitli sohbet düzgün bir hata koduyla reddedilir
     await AiService.assertWritable(params.userId, params.threadId);
+
+    if (params.truncateFrom !== undefined) {
+      if (!params.threadId) throw new BadRequestException('Silinecek mesaj için sohbet gerekli');
+      await AiService.truncateFrom({
+        userId: params.userId,
+        threadId: params.threadId,
+        index: params.truncateFrom,
+      });
+    }
 
     const threadId = params.threadId ?? nanoid();
     const encoder = new TextEncoder();
@@ -333,8 +468,6 @@ export abstract class AiService {
           }
         };
 
-        send({ type: 'thread', threadId });
-
         try {
           // Yeni sohbetin başlığı ilk mesajdan gelir (başlık için ayrıca model çağrılmaz)
           if (!params.threadId) {
@@ -345,6 +478,8 @@ export abstract class AiService {
               title: toTitle(params.message),
             });
           }
+          // Sohbet gerçekten oluştuktan sonra bildirilir, yoksa ekran var olmayan sohbete yönlenir
+          send({ type: 'thread', threadId });
 
           const result = await client.getAgent(ASSISTANT_AGENT_ID).stream(params.message, {
             memory: {
@@ -359,6 +494,11 @@ export abstract class AiService {
             onChunk: async (chunk) => {
               if (chunk.type === 'text-delta') {
                 send({ type: 'text', text: chunk.payload.text });
+              } else if (chunk.type === 'tool-call') {
+                send({
+                  type: 'status',
+                  text: TOOL_STATUS[chunk.payload.toolName] ?? 'Araç çalışıyor...',
+                });
               } else if (chunk.type === 'error') {
                 failed = true;
                 console.error('Mastra stream error:', chunk.payload);
@@ -372,7 +512,10 @@ export abstract class AiService {
         } catch (error) {
           if (!abortController.signal.aborted) {
             console.error('Error in AiService.chatStream:', error);
-            send({ type: 'error', message: 'Asistandan yanıt alınamadı' });
+            send({
+              type: 'error',
+              message: isUnreachable(error) ? ASSISTANT_DOWN_MESSAGE : 'Asistandan yanıt alınamadı',
+            });
           }
         } finally {
           try {

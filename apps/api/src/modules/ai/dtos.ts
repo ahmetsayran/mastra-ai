@@ -22,11 +22,15 @@ export const aiChatDto = {
 } satisfies ControllerHook;
 
 export const aiChatStreamDto = {
-  body: aiChatBody,
+  body: t.Object({
+    ...aiChatBody.properties,
+    // Yeniden üret / mesajı düzenle: ekrandaki bu sıradaki kullanıcı mesajı ve sonrası silinip mesaj yeniden gönderilir
+    truncateFrom: t.Optional(t.Integer({ minimum: 0 })),
+  }),
   detail: {
     summary: 'Chat (stream)',
     description:
-      'Mastra asistanına mesaj gönderir ve yanıtı parça parça döndürür. Her satır bir JSON olayıdır: thread, text, error, done',
+      'Mastra asistanına mesaj gönderir ve yanıtı parça parça döndürür. Her satır bir JSON olayıdır: thread, status, text, error, done',
   },
 } satisfies ControllerHook;
 
@@ -72,7 +76,12 @@ export const aiThreadMessagesDto = {
   response: {
     200: t.Object({
       messages: t.Array(
-        t.Object({ role: t.Union([t.Literal('user'), t.Literal('assistant')]), text: t.String() }),
+        t.Object({
+          role: t.Union([t.Literal('user'), t.Literal('assistant')]),
+          text: t.String(),
+          // Sadece asistan yanıtlarında, kullanıcı geri bildirim verdiyse bulunur
+          feedback: t.Optional(t.Union([t.Literal('up'), t.Literal('down')])),
+        }),
       ),
     }),
     404: errorResponseDto[404],
@@ -81,6 +90,26 @@ export const aiThreadMessagesDto = {
   detail: {
     summary: 'Sohbet mesajları',
     description: 'Bir sohbetin mesajlarını eskiden yeniye doğru döndürür',
+  },
+} satisfies ControllerHook;
+
+export const aiMessageFeedbackDto = {
+  params: t.Object({
+    threadId: t.String({ pattern: '^[A-Za-z0-9_-]{1,64}$' }),
+    // Ekrandaki (görünen) mesaj listesindeki sıra
+    index: t.Numeric({ minimum: 0 }),
+  }),
+  body: t.Object({ value: t.Union([t.Literal('up'), t.Literal('down'), t.Null()]) }),
+  response: {
+    200: t.Object({ success: t.Boolean() }),
+    400: errorResponseDto[400],
+    404: errorResponseDto[404],
+    502: errorResponseDto[502],
+  },
+  detail: {
+    summary: 'Yanıta geri bildirim',
+    description:
+      'Asistan yanıtını beğenir (up), beğenmez (down) veya geri bildirimi kaldırır (null)',
   },
 } satisfies ControllerHook;
 

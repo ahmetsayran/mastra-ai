@@ -15,8 +15,16 @@ import {
 } from '@tabler/icons-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useSearch } from '@tanstack/react-router';
+import { toast } from 'sonner';
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 'react';
-import { type ChatMessage, THREADS_QUERY_KEY, fetchThreadMessages, useThreads } from './api';
+import {
+  type ChatMessage,
+  type Feedback,
+  THREADS_QUERY_KEY,
+  fetchThreadMessages,
+  setMessageFeedback,
+  useThreads,
+} from './api';
 import { ChatBubble } from './chat-bubble';
 
 export function AiAssistantPage() {
@@ -26,6 +34,11 @@ export function AiAssistantPage() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string>();
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  // Asistan araç kullanırken "Saat bakılıyor..." gibi kısa durum yazısı
+  const [status, setStatus] = useState<string>();
+  // Düzenlenen kullanıcı mesajının sırası ve düzenleme metni
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editText, setEditText] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const abortRef = useRef<AbortController | null>(null);
@@ -50,11 +63,14 @@ export function AiAssistantPage() {
     if (thread === activeThreadRef.current) return;
 
     abortRef.current?.abort();
+    // Eski akışın kalıntısı yeni sohbetin ekranına dokunmasın
+    abortRef.current = null;
     loadIdRef.current += 1;
     activeThreadRef.current = thread;
     setThreadId(thread);
     setError(undefined);
     setIsStreaming(false);
+    setEditingIndex(null);
 
     if (!thread) {
       setMessages([]);
@@ -77,7 +93,8 @@ export function AiAssistantPage() {
   }, [thread]);
 
   // Yanıt parça parça gelir: her satır bir JSON olayıdır (thread, text, done, error)
-  const streamReply = async (message: string) => {
+  // truncateFrom: yeniden üret / düzenle için, bu sıradaki kullanıcı mesajı ve sonrası sunucuda silinir
+  const streamReply = async (message: string, truncateFrom?: number) => {
     const controller = new AbortController();
     abortRef.current = controller;
     setIsStreaming(true);
@@ -94,7 +111,7 @@ export function AiAssistantPage() {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message, threadId }),
+        body: JSON.stringify({ message, threadId, truncateFrom }),
         signal: controller.signal,
       });
 
@@ -118,6 +135,7 @@ export function AiAssistantPage() {
           if (!line.trim()) continue;
           const event = JSON.parse(line) as
             | { type: 'thread'; threadId: string }
+            | { type: 'status'; text: string }
             | { type: 'text'; text: string }
             | { type: 'done' }
             | { type: 'error'; message: string };
@@ -131,13 +149,34 @@ export function AiAssistantPage() {
               search: { thread: event.threadId },
               replace: true,
             });
-          } else if (event.type === 'text') appendToLast(event.text);
-          else if (event.type === 'error') throw new Error(event.message);
+          } else if (event.type === 'status') setStatus(event.text);
+          else if (event.type === 'text') {
+            setStatus(undefined);
+            appendToLast(event.text);
+          } else if (event.type === 'error') throw new Error(event.message);
         }
       }
     } catch (err) {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted) {
+        // Durdurulan yanıt kaydedilmez; ekranda kalır ama beğeni verilemez
+        if (abortRef.current === controller) {
+          setMessages((prev) =>
+            prev.map((message, i) =>
+              i === prev.length - 1 && message.role === 'assistant'
+                ? { ...message, partial: true }
+                : message,
+            ),
+          );
+        }
+        return;
+      }
       setError(err instanceof Error ? err.message : 'Asistandan yanıt alınamadı');
+      // İstek silme aşamasında düştüyse ekran sunucudan ayrışmasın diye sohbet yeniden yüklenir
+      if (truncateFrom !== undefined && threadId) {
+        void fetchThreadMessages(threadId)
+          .then((history) => abortRef.current === controller && setMessages(history))
+          .catch(() => undefined);
+      }
     } finally {
       // Bu arada başka sohbete geçildiyse yeni sohbetin ekranına dokunma
       if (abortRef.current === controller) {
@@ -149,6 +188,7 @@ export function AiAssistantPage() {
             : prev,
         );
         setIsStreaming(false);
+        setStatus(undefined);
       }
     }
   };
@@ -169,6 +209,52 @@ export function AiAssistantPage() {
     ]);
     setInput('');
     void streamReply(message);
+  };
+
+  // Beğen / beğenme: ekran hemen güncellenir, kayıt başarısız olursa eski haline döner
+  const giveFeedback = (index: number, value: Feedback | null) => {
+    if (!threadId) return;
+    const previous = messages[index]?.feedback;
+    const apply = (feedback?: Feedback) =>
+      setMessages((prev) =>
+        prev.map((message, i) => (i === index ? { ...message, feedback } : message)),
+      );
+
+    apply(value ?? undefined);
+    setMessageFeedback(threadId, index, value).catch((err: unknown) => {
+      apply(previous);
+      toast.error(err instanceof Error ? err.message : 'Geri bildirim kaydedilemedi');
+    });
+  };
+
+  // Son kullanıcı mesajını aynen yeniden gönderir; eski asistan yanıtı silinir, yenisi yazılır
+  const regenerate = () => {
+    const index = messages.map((message) => message.role).lastIndexOf('user');
+    if (index < 0 || isStreaming || isLocked) return;
+
+    const text = messages[index].text;
+    setMessages([...messages.slice(0, index + 1), { role: 'assistant', text: '' }]);
+    void streamReply(text, index);
+  };
+
+  const startEdit = (index: number) => {
+    setEditingIndex(index);
+    setEditText(messages[index].text);
+  };
+
+  // Düzenlenen mesaj ve sonrasındaki her şey silinir, yeni metinle yanıt yeniden alınır
+  const saveEdit = () => {
+    const text = editText.trim();
+    if (editingIndex === null || !text || isStreaming || isLocked) return;
+
+    setMessages([
+      ...messages.slice(0, editingIndex),
+      { role: 'user', text },
+      { role: 'assistant', text: '' },
+    ]);
+    const index = editingIndex;
+    setEditingIndex(null);
+    void streamReply(text, index);
   };
 
   // Ekrandaki sohbeti .md dosyası olarak indirir (tarayıcıda oluşturulur, sunucuya gitmez)
@@ -206,11 +292,13 @@ export function AiAssistantPage() {
 
   const resetChat = () => {
     abortRef.current?.abort();
+    abortRef.current = null;
     activeThreadRef.current = undefined;
     setMessages([]);
     setThreadId(undefined);
     setError(undefined);
     setIsStreaming(false);
+    setEditingIndex(null);
     void navigate({ to: '/ai-assistant', search: {} });
   };
 
@@ -266,16 +354,57 @@ export function AiAssistantPage() {
               </div>
             )}
 
-            {messages.map((message, index) =>
-              message.role === 'assistant' && !message.text ? null : (
-                <ChatBubble key={index} message={message} />
-              ),
-            )}
+            {messages.map((message, index) => {
+              if (message.role === 'assistant' && !message.text) return null;
+
+              if (editingIndex === index) {
+                return (
+                  <div key={index} className="flex justify-end">
+                    <div className="w-full max-w-[80%] space-y-2">
+                      <Textarea
+                        value={editText}
+                        onChange={(event) => setEditText(event.target.value)}
+                        className="min-h-20"
+                        autoFocus
+                      />
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setEditingIndex(null)}>
+                          İptal
+                        </Button>
+                        <Button size="sm" onClick={saveEdit} disabled={!editText.trim()}>
+                          Kaydet ve gönder
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              // Düzenle / yeniden üret sadece kayıtlı, kilitsiz ve yanıt akmayan sohbette çıkar
+              const canModify = !!threadId && !isStreaming && !isLocked;
+              return (
+                <ChatBubble
+                  key={index}
+                  message={message}
+                  onEdit={canModify && message.role === 'user' ? () => startEdit(index) : undefined}
+                  onFeedback={
+                    canModify && message.role === 'assistant' && !message.partial
+                      ? (value) => giveFeedback(index, value)
+                      : undefined
+                  }
+                  onRegenerate={
+                    canModify && message.role === 'assistant' && index === messages.length - 1
+                      ? regenerate
+                      : undefined
+                  }
+                />
+              );
+            })}
 
             {isStreaming && !messages[messages.length - 1]?.text && (
               <div className="flex justify-start">
                 <div className="rounded-lg bg-muted px-4 py-2 text-sm text-muted-foreground">
-                  Yazıyor...
+                  {status ?? 'Yazıyor...'}
                 </div>
               </div>
             )}

@@ -3,6 +3,7 @@ import { auth } from '../auth';
 import {
   aiChatDto,
   aiChatStreamDto,
+  aiMessageFeedbackDto,
   aiSharedThreadDto,
   aiThreadDeleteDto,
   aiThreadMessagesDto,
@@ -41,6 +42,17 @@ const app = new Elysia({ prefix: '/ai', tags: ['AI'] })
     async ({ params, user }) =>
       AiService.getThreadMessages({ threadId: params.threadId, userId: user.id }),
     aiThreadMessagesDto,
+  )
+  .put(
+    '/threads/:threadId/messages/:index/feedback',
+    async ({ params, body, user }) =>
+      AiService.setFeedback({
+        threadId: params.threadId,
+        userId: user.id,
+        index: params.index,
+        value: body.value,
+      }),
+    aiMessageFeedbackDto,
   )
   .patch(
     '/threads/:threadId',

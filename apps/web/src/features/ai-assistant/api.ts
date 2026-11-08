@@ -11,7 +11,15 @@ export type ChatThread = {
   // Paylaşım açıksa linkin gizli parçası, kapalıysa null
   shareToken: string | null;
 };
-export type ChatMessage = { role: 'user' | 'assistant'; text: string };
+export type Feedback = 'up' | 'down';
+// feedback: sadece asistan yanıtlarında, kullanıcı beğendi ('up') veya beğenmedi ('down') dediyse
+// partial: kullanıcı yanıtı yarıda durdurdu, bu yanıt sunucuda kayıtlı değil (sadece ekranda)
+export type ChatMessage = {
+  role: 'user' | 'assistant';
+  text: string;
+  feedback?: Feedback;
+  partial?: boolean;
+};
 
 export const THREADS_QUERY_KEY = ['ai', 'threads'] as const;
 
@@ -29,6 +37,17 @@ async function aiFetch<T>(path: string, init?: RequestInit): Promise<T> {
 export const fetchThreadMessages = async (threadId: string) =>
   (await aiFetch<{ messages: ChatMessage[] }>(`/threads/${encodeURIComponent(threadId)}/messages`))
     .messages;
+
+// index: ekrandaki mesaj sırası; value null ise geri bildirim kaldırılır
+export const setMessageFeedback = (threadId: string, index: number, value: Feedback | null) =>
+  aiFetch<{ success: boolean }>(
+    `/threads/${encodeURIComponent(threadId)}/messages/${index}/feedback`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value }),
+    },
+  );
 
 // Ad, sabitleme, kilit, arşiv ve paylaşım tek istekte güncellenir; sadece verilen alanlar değişir
 export type ChatThreadPatch = Partial<{

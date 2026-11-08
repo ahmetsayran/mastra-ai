@@ -9,7 +9,8 @@
   "scripts": {
     "dev": "dotenvx run --quiet -f ../../config/apps/mastra/.env -- mastra dev",
     "build": "dotenvx run --quiet -f ../../config/apps/mastra/.env -- mastra build",
-    "start": "dotenvx run --quiet -f ../../config/apps/mastra/.env -- mastra start"
+    "start": "dotenvx run --quiet -f ../../config/apps/mastra/.env -- mastra start",
+    "test": "bun test"
   },
   "type": "module",
   "engines": {
