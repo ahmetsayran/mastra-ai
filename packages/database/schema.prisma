@@ -162,6 +162,7 @@ model User {
   createdUsers    User[]           @relation("UserToCreator")
   auditLogs       AuditLog[]       @relation("AuditLogsToUser")
   posts           Post[]           @relation("PostToUser")
+  postComments    PostComment[]    @relation("PostCommentToUser")
   userRoles       UserRole[]       @relation("UserRoleToUser")
   sessions        Session[]
   accounts        Account[]
@@ -294,6 +295,8 @@ model Post {
   /// @prismabox.hide
   authorId String @map("author_id")
 
+  comments PostComment[]
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   /// @prismabox.input.hide
@@ -301,6 +304,29 @@ model Post {
 
   @@index([deletedAt])
   @@map("posts")
+}
+
+model PostComment {
+  /// @prismabox.hide
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
+
+  /// @prismabox.options{minLength:1,maxLength:1000}
+  content String @db.VarChar(1000)
+
+  post   Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+  /// @prismabox.hide
+  postId Int  @map("post_id")
+
+  author   User   @relation("PostCommentToUser", fields: [authorId], references: [id], onDelete: Cascade)
+  /// @prismabox.hide
+  authorId String @map("author_id")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([postId])
+  @@map("post_comments")
 }
 
 model UserRole {

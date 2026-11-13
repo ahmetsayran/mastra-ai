@@ -71,7 +71,7 @@ class FakeMastraClient {
   }
 }
 
-mock.module('@mastra/client-js', () => ({ MastraClient: FakeMastraClient }));
+mock.module('@mastra/client-js', () => ({ MastraClient: FakeMastraClient, RequestContext: Map }));
 
 const { AiService } = await import('./service');
 

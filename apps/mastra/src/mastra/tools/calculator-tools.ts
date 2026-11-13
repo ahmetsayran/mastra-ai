@@ -5,10 +5,7 @@ import { evaluate } from './math';
 // Modeller büyük sayılarla işlemde yanılabilir; bu araç kesin sonuç verir.
 export const calculatorTool = createTool({
   id: 'calculate',
-  description:
-    'Evaluates a math expression exactly. Use it for any arithmetic instead of calculating yourself. ' +
-    'Supports + - * / % (modulo) ^ (power), parentheses, decimals with a dot (1234.5) and sqrt/abs/round/floor/ceil. ' +
-    'Do not use thousands separators. Convert percentages first, e.g. "20% of 150" is "0.2 * 150".',
+  description: 'Evaluates a math expression exactly.',
   inputSchema: z.object({
     expression: z
       .string()

@@ -6,8 +6,7 @@ const DEFAULT_TIME_ZONE = 'Europe/Istanbul';
 // Modeller bugünün tarihini kendi başına bilemez; bu araç gerçek saati verir.
 export const currentTimeTool = createTool({
   id: 'get_current_time',
-  description:
-    'Returns the current date and time. Use it whenever the user asks about today, now, the current time or date, or needs a date calculated from today.',
+  description: 'Returns the current date and time.',
   inputSchema: z.object({
     timeZone: z
       .string()

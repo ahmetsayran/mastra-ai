@@ -15,16 +15,32 @@ import { AiService } from './service';
 
 const app = new Elysia({ prefix: '/ai', tags: ['AI'] })
   .use(auth())
-  .post('/chat', async ({ body, user }) => AiService.chat({ ...body, userId: user.id }), aiChatDto)
+  .post(
+    '/chat',
+    async ({ body, user, request }) =>
+      AiService.chat({
+        ...body,
+        userId: user.id,
+        cookie: request.headers.get('cookie') ?? undefined,
+      }),
+    aiChatDto,
+  )
   .post(
     '/chat/stream',
-    async ({ body, user }) =>
-      new Response(await AiService.chatStream({ ...body, userId: user.id }), {
-        headers: {
-          'Content-Type': 'application/x-ndjson; charset=utf-8',
-          'Cache-Control': 'no-cache, no-transform',
+    async ({ body, user, request }) =>
+      new Response(
+        await AiService.chatStream({
+          ...body,
+          userId: user.id,
+          cookie: request.headers.get('cookie') ?? undefined,
+        }),
+        {
+          headers: {
+            'Content-Type': 'application/x-ndjson; charset=utf-8',
+            'Cache-Control': 'no-cache, no-transform',
+          },
         },
-      }),
+      ),
     aiChatStreamDto,
   )
   .get(

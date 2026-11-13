@@ -3,6 +3,7 @@ import { aiController, aiSharedController } from './ai';
 import authController from './auth/controller';
 import { fileLibraryAssetsController } from './file-library-assets';
 import { locationsController } from './locations';
+import { postCommentsController } from './post-comments';
 import { postsController } from './posts';
 import { systemAdministrationController } from './system-administration';
 import { usersController } from './users';
@@ -14,6 +15,7 @@ const app = new Elysia()
   .use(usersController)
   .use(authController)
   .use(postsController)
+  .use(postCommentsController)
   .use(projectsController)
   .use(locationsController)
   .use(companiesController)
@@ -42,6 +44,7 @@ export const swaggerTags: { name: string; description: string }[] = [
   { name: 'Auth', description: 'Auth endpoints' },
   { name: 'Role', description: 'Role endpoints' },
   { name: 'Post', description: 'Post endpoints' },
+  { name: 'Post Comment', description: 'Post comment endpoints' },
   {
     name: 'Projects',
     description:

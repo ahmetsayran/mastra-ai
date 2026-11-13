@@ -1,4 +1,4 @@
-import { MastraClient } from '@mastra/client-js';
+import { MastraClient, RequestContext } from '@mastra/client-js';
 import { nanoid } from 'nanoid';
 import {
   BadGatewayException,
@@ -57,6 +57,11 @@ const LOCKED_MESSAGE = 'Sohbet kilitli. Önce kilidini açın';
 const TOOL_STATUS: Record<string, string> = {
   get_current_time: 'Saat bakılıyor...',
   calculate: 'Hesaplanıyor...',
+  list_posts: 'Gönderiler getiriliyor...',
+  list_post_comments: 'Yorumlar getiriliyor...',
+  create_post_comment: 'Yorum ekleniyor...',
+  update_post_comment: 'Yorum güncelleniyor...',
+  delete_post_comment: 'Yorum siliniyor...',
 };
 
 const ASSISTANT_DOWN_MESSAGE = 'Asistan şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin';
@@ -75,12 +80,22 @@ const client = new MastraClient({
 });
 
 export abstract class AiService {
+  // Araçlar API'yi kullanıcı adına çağırırken oturum çerezine ihtiyaç duyar
+  private static requestContext(cookie?: string) {
+    return new RequestContext<unknown>(cookie ? [['cookie', cookie]] : []);
+  }
+
   // Mastra'daki thread id'si kullanıcıya göre ayrıştırılır, böylece kullanıcılar birbirinin sohbetine erişemez
   private static memoryThreadId(userId: string, threadId: string) {
     return `${userId}:${threadId}`;
   }
 
-  static async chat(params: { message: string; threadId?: string; userId: string }) {
+  static async chat(params: {
+    message: string;
+    threadId?: string;
+    userId: string;
+    cookie?: string;
+  }) {
     const threadId = params.threadId ?? nanoid();
     await AiService.assertWritable(params.userId, params.threadId);
 
@@ -90,6 +105,7 @@ export abstract class AiService {
           thread: AiService.memoryThreadId(params.userId, threadId),
           resource: params.userId,
         },
+        requestContext: AiService.requestContext(params.cookie),
       });
 
       return { text: result.text, threadId };
@@ -441,6 +457,8 @@ export abstract class AiService {
     threadId?: string;
     userId: string;
     truncateFrom?: number;
+    // Kullanıcının oturum çerezi: araçlar API'yi kullanıcı adına çağırırken kullanılır
+    cookie?: string;
   }) {
     // Akış başlamadan önce kontrol edilir, böylece kilitli sohbet düzgün bir hata koduyla reddedilir
     await AiService.assertWritable(params.userId, params.threadId);
@@ -486,6 +504,7 @@ export abstract class AiService {
               thread: AiService.memoryThreadId(params.userId, threadId),
               resource: params.userId,
             },
+            requestContext: AiService.requestContext(params.cookie),
             abortSignal: abortController.signal,
           });
 

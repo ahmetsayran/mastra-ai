@@ -10,6 +10,7 @@ export const AuditLogEntity = {
   USER: 'User',
   ROLE: 'Role',
   POST: 'Post',
+  POST_COMMENT: 'PostComment',
   PROJECT: 'Project',
   FILE_LIBRARY_ASSET: 'FileLibraryAsset',
   USER_ROLE: 'UserRole',
