@@ -63,6 +63,13 @@ const TOOL_STATUS: Record<string, string> = {
   delete_post_comment: 'Yorum siliniyor...',
 };
 
+const BLOCKED_MESSAGE = 'Bu mesaj güvenlik kontrolünden geçemedi. Lütfen farklı bir şekilde yazın';
+
+// Cevap kontrol edildikten sonra tek parça gelir; ekranda akıcı görünsün diye küçük parçalara bölünüp gönderilir
+const STREAM_PIECE_SIZE = 6;
+const STREAM_PIECE_DELAY_MS = 12;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const ASSISTANT_DOWN_MESSAGE = 'Asistan şu an ulaşılamıyor. Birkaç dakika sonra tekrar deneyin';
 
 // Mastra sunucusu kapalı / erişilemez mi? (bağlantı reddedildi, zaman aşımı vb.)
@@ -508,10 +515,18 @@ export abstract class AiService {
           });
 
           let failed = false;
+          let blocked = false;
           await result.processDataStream({
             onChunk: async (chunk) => {
               if (chunk.type === 'text-delta') {
-                send({ type: 'text', text: chunk.payload.text });
+                const { text } = chunk.payload;
+                for (let i = 0; i < text.length; i += STREAM_PIECE_SIZE) {
+                  if (abortController.signal.aborted) break;
+                  send({ type: 'text', text: text.slice(i, i + STREAM_PIECE_SIZE) });
+                  await sleep(STREAM_PIECE_DELAY_MS);
+                }
+              } else if (chunk.type === 'tripwire') {
+                blocked = true;
               } else if (chunk.type === 'tool-call') {
                 send({
                   type: 'status',
@@ -524,9 +539,13 @@ export abstract class AiService {
             },
           });
 
-          send(
-            failed ? { type: 'error', message: 'Asistandan yanıt alınamadı' } : { type: 'done' },
-          );
+          if (blocked) {
+            send({ type: 'error', message: BLOCKED_MESSAGE });
+          } else {
+            send(
+              failed ? { type: 'error', message: 'Asistandan yanıt alınamadı' } : { type: 'done' },
+            );
+          }
         } catch (error) {
           if (!abortController.signal.aborted) {
             console.error('Error in AiService.chatStream:', error);

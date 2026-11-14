@@ -1,8 +1,13 @@
 import { Agent } from '@mastra/core/agent';
 import { Memory } from '@mastra/memory';
+import { inputGuardrails, outputGuardrails } from '../guardrails';
 import { postCommentTools } from '../tools/post-comment-tools';
 import { calculatorTool } from '../tools/calculator-tools';
 import { currentTimeTool } from '../tools/time-tools';
+
+// Varsayılan olarak OpenRouter'daki ücretsiz bir model kullanılır (OPENROUTER_API_KEY gerekir).
+// Başka bir model için .env dosyasındaki ASSISTANT_MODEL değerini değiştirin.
+const MODEL = process.env.ASSISTANT_MODEL || 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free';
 
 // Web uygulamasındaki sohbet sayfasının kullandığı agent.
 // Kullanıcılara açık olduğu için dosya sistemi ve komut çalıştırma araçları yoktur;
@@ -34,9 +39,9 @@ Kullanıcının uygulamada yapabildikleri (soru gelirse bunları anlat, bunun d�
 - Yanıt yazılırken Durdur butonuyla kesmek; son yanıtı "Yeniden üret" ile tekrar yazdırmak; kendi mesajını "Düzenle" ile düzeltip yanıtı yeniden almak.
 - Asistana bir gönderiye yorum yazdırmak, kendi yorumunu düzenletmek veya sildirmek.
 - Sohbeti "Markdown indir" ile dosya olarak kaydetmek; kod bloklarının üstündeki butonla kodu kopyalamak.`,
-  // Varsayılan olarak OpenRouter'daki ücretsiz bir model kullanılır (OPENROUTER_API_KEY gerekir).
-  // Başka bir model için .env dosyasındaki ASSISTANT_MODEL değerini değiştirin.
-  model: process.env.ASSISTANT_MODEL || 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free',
+  model: MODEL,
+  inputProcessors: inputGuardrails(MODEL),
+  outputProcessors: outputGuardrails(),
   tools: { get_current_time: currentTimeTool, calculate: calculatorTool, ...postCommentTools },
   memory: new Memory({
     options: {
