@@ -57,7 +57,6 @@ const LOCKED_MESSAGE = 'Sohbet kilitli. Önce kilidini açın';
 const TOOL_STATUS: Record<string, string> = {
   get_current_time: 'Saat bakılıyor...',
   calculate: 'Hesaplanıyor...',
-  list_posts: 'Gönderiler getiriliyor...',
   list_post_comments: 'Yorumlar getiriliyor...',
   create_post_comment: 'Yorum ekleniyor...',
   update_post_comment: 'Yorum güncelleniyor...',

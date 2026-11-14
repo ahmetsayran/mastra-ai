@@ -1,7 +1,5 @@
 import { Elysia } from 'elysia';
-import { dtoWithMiddlewares } from '../../utils';
 import { PaginationService } from '../../utils/pagination';
-import { AuditLogAction, AuditLogEntity, withAuditLog } from '../audit-logs';
 import { auth } from '../auth';
 import {
   postCommentCreateDto,
@@ -39,30 +37,13 @@ const app = new Elysia({ prefix: '/post-comments', tags: ['Post Comment'] })
     '/',
     async ({ body, user }) =>
       PostCommentFormatter.response(await PostCommentsService.store(body, user.id)),
-    dtoWithMiddlewares(
-      postCommentCreateDto,
-      withAuditLog({
-        actionType: AuditLogAction.CREATE,
-        entityType: AuditLogEntity.POST_COMMENT,
-        // @ts-ignore // posts modülündeki gibi: ctx.response tipi AuditLogContext'te tanımlı değil
-        getEntityUuid: (ctx) => (ctx.response as { uuid: string }).uuid,
-        getDescription: () => 'Yeni yorum eklendi',
-      }),
-    ),
+    postCommentCreateDto,
   )
   .put(
     '/:uuid',
     async ({ params, body, user }) =>
       PostCommentFormatter.response(await PostCommentsService.update(params.uuid, body, user.id)),
-    dtoWithMiddlewares(
-      postCommentUpdateDto,
-      withAuditLog({
-        actionType: AuditLogAction.UPDATE,
-        entityType: AuditLogEntity.POST_COMMENT,
-        getEntityUuid: ({ params }) => params.uuid!,
-        getDescription: () => 'Yorum güncellendi',
-      }),
-    ),
+    postCommentUpdateDto,
   )
   .delete(
     '/:uuid',
@@ -70,15 +51,7 @@ const app = new Elysia({ prefix: '/post-comments', tags: ['Post Comment'] })
       await PostCommentsService.destroy(params.uuid, user.id);
       return { message: 'Yorum başarıyla silindi' };
     },
-    dtoWithMiddlewares(
-      postCommentDestroyDto,
-      withAuditLog({
-        actionType: AuditLogAction.DELETE,
-        entityType: AuditLogEntity.POST_COMMENT,
-        getEntityUuid: ({ params }) => params.uuid!,
-        getDescription: () => 'Yorum silindi',
-      }),
-    ),
+    postCommentDestroyDto,
   );
 
 export default app;

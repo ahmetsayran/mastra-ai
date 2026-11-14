@@ -44,7 +44,6 @@ export const swaggerTags: { name: string; description: string }[] = [
   { name: 'Auth', description: 'Auth endpoints' },
   { name: 'Role', description: 'Role endpoints' },
   { name: 'Post', description: 'Post endpoints' },
-  { name: 'Post Comment', description: 'Post comment endpoints' },
   {
     name: 'Projects',
     description:

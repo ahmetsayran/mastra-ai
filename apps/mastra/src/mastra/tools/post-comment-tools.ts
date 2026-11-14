@@ -27,33 +27,10 @@ const toComment = (c: ApiComment) => ({
   createdAt: String(c.createdAt),
 });
 
-export const listPostsTool = createTool({
-  id: 'list_posts',
-  description: 'Lists posts.',
-  inputSchema: z.object({
-    search: z.string().optional().describe('Text to look for in title or content.'),
-  }),
-  outputSchema: z.object({
-    total: z.number(),
-    posts: z.array(z.object({ uuid: z.string(), title: z.string(), author: z.string() })),
-  }),
-  execute: async ({ search }, { requestContext }) => {
-    const query = new URLSearchParams({ perPage: '10' });
-    if (search) query.set('search', search);
-    const result = await callApi<
-      Paginated<{ uuid: string; title: string; author: { name: string } }>
-    >(requestContext, 'GET', `/posts?${query}`);
-    return {
-      total: result.meta.total,
-      posts: result.data.map((p) => ({ uuid: p.uuid, title: p.title, author: p.author.name })),
-    };
-  },
-});
-
 export const listPostCommentsTool = createTool({
   id: 'list_post_comments',
   description: 'Lists the comments of a post, newest first.',
-  inputSchema: z.object({ postUuid: z.string().describe('Post uuid from list_posts.') }),
+  inputSchema: z.object({ postUuid: z.string().describe('Post uuid.') }),
   outputSchema: z.object({ total: z.number(), comments: z.array(commentSchema) }),
   execute: async ({ postUuid }, { requestContext }) => {
     const query = new URLSearchParams({ postUuid, perPage: '20' });
@@ -70,7 +47,7 @@ export const createPostCommentTool = createTool({
   id: 'create_post_comment',
   description: 'Adds a comment to a post.',
   inputSchema: z.object({
-    postUuid: z.string().describe('Post uuid from list_posts.'),
+    postUuid: z.string().describe('Post uuid.'),
     content: z.string().min(1).max(1000),
   }),
   outputSchema: commentSchema,
@@ -108,7 +85,6 @@ export const deletePostCommentTool = createTool({
 });
 
 export const postCommentTools = {
-  list_posts: listPostsTool,
   list_post_comments: listPostCommentsTool,
   create_post_comment: createPostCommentTool,
   update_post_comment: updatePostCommentTool,
