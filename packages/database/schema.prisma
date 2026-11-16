@@ -163,6 +163,7 @@ model User {
   auditLogs       AuditLog[]       @relation("AuditLogsToUser")
   posts           Post[]           @relation("PostToUser")
   postComments    PostComment[]    @relation("PostCommentToUser")
+  documents       Document[]       @relation("DocumentToUser")
   userRoles       UserRole[]       @relation("UserRoleToUser")
   sessions        Session[]
   accounts        Account[]
@@ -327,6 +328,58 @@ model PostComment {
 
   @@index([postId])
   @@map("post_comments")
+}
+
+enum DocumentStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+
+  @@map("document_status")
+}
+
+model Document {
+  /// @prismabox.hide
+  id   Int    @id @default(autoincrement())
+  uuid String @unique @default(uuid())
+
+  /// @prismabox.options{minLength:1,maxLength:255}
+  title String @db.VarChar(255)
+
+  status DocumentStatus @default(PENDING)
+
+  owner   User   @relation("DocumentToUser", fields: [ownerId], references: [id], onDelete: Cascade)
+  /// @prismabox.hide
+  ownerId String @map("owner_id")
+
+  chunks DocumentChunk[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([ownerId])
+  @@map("documents")
+}
+
+model DocumentChunk {
+  /// @prismabox.hide
+  id Int @id @default(autoincrement())
+
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  /// @prismabox.hide
+  documentId Int      @map("document_id")
+
+  chunkIndex Int    @map("chunk_index")
+  content    String @db.Text
+
+  /// @prismabox.hide
+  embedding Unsupported("vector(384)")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([documentId])
+  @@map("document_chunks")
 }
 
 model UserRole {
