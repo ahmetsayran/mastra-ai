@@ -335,8 +335,6 @@ model Document {
 
   chunks DocumentChunk[]
 
-  createdAt DateTime @default(now()) @map("created_at")
-
   @@map("documents")
 }
 
@@ -352,8 +350,6 @@ model DocumentChunk {
 
   /// @prismabox.hide
   embedding Unsupported("vector")
-
-  createdAt DateTime @default(now()) @map("created_at")
 
   @@index([documentId])
   @@map("document_chunks")
