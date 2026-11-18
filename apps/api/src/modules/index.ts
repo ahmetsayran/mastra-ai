@@ -1,6 +1,7 @@
 import Elysia from 'elysia';
 import { aiController, aiSharedController } from './ai';
 import authController from './auth/controller';
+import { documentAnalysisController } from './document-analysis';
 import { fileLibraryAssetsController } from './file-library-assets';
 import { locationsController } from './locations';
 import { postCommentsController } from './post-comments';
@@ -21,6 +22,7 @@ const app = new Elysia()
   .use(companiesController)
   .use(fileLibraryAssetsController)
   .use(aiController)
+  .use(documentAnalysisController)
   .use(aiSharedController)
   .get(
     '/',

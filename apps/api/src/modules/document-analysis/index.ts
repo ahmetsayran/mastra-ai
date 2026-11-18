@@ -1,0 +1,1 @@
+export { documentAnalysisController } from './controller';
