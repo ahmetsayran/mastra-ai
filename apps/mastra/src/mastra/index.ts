@@ -1,4 +1,5 @@
 import { Mastra } from '@mastra/core/mastra';
+import { registerApiRoute } from '@mastra/core/server';
 import { LibSQLStore } from '@mastra/libsql';
 import { DuckDBStore } from '@mastra/duckdb';
 import { MastraCompositeStore } from '@mastra/core/storage';
@@ -11,12 +12,28 @@ import {
 import { agent } from './agents/agent';
 import { assistant } from './agents/assistant';
 import { documentAnalyzer } from './agents/document-analyzer';
+import { embedTexts } from './embedding';
 import { startScheduleTool, stopScheduleTool } from './tools/schedule-tools';
 
 export const mastra = new Mastra({
   // Sunucu yalnızca bu bilgisayardan erişilebilir olsun; aynı ağdaki başka cihazlar bağlanamasın
   server: {
     host: 'localhost',
+    apiRoutes: [
+      // API'nin metinleri vektöre çevirtmesi için; OpenRouter anahtarı sadece Mastra'da durur
+      registerApiRoute('/embed', {
+        method: 'POST',
+        handler: async (c) => {
+          const { texts } = await c.req.json<{ texts: string[] }>();
+          try {
+            return c.json({ embeddings: await embedTexts(texts) });
+          } catch (error) {
+            console.error('Embedding error:', error);
+            return c.json({ message: 'Embedding alınamadı' }, 502);
+          }
+        },
+      }),
+    ],
   },
   bundler: {
     externals: ['@duckdb/node-bindings'],
