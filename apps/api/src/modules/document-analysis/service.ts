@@ -1,5 +1,6 @@
 import { MastraClient } from '@mastra/client-js';
 import { BadGatewayException, BadRequestException } from '../../utils';
+import { selectRelevantText } from './retrieval';
 import { DOCUMENT_ANALYSIS_SCHEMA, type DocumentAnalysis } from './schema';
 import { DOCX_MIME_TYPE, extractDocumentText, PDF_MIME_TYPE } from './text-extractor';
 
@@ -9,6 +10,9 @@ const client = new MastraClient({
   baseUrl: process.env.MASTRA_URL || 'http://localhost:4111',
   retries: 1,
 });
+
+// Bu uzunluğun üstündeki dokümanlarda tamamı yerine sadece ilgili parçalar (RAG) analiz edilir
+const RAG_MIN_LENGTH = 100_000;
 
 // Tarayıcı veya araç dosya türünü göndermeyebilir; bu yüzden uzantıya da bakılır
 const resolveMimeType = (file: File) => {
@@ -27,7 +31,9 @@ export abstract class DocumentAnalysisService {
     const text = await extractDocumentText(Buffer.from(await file.arrayBuffer()), mimeType);
     if (!text) throw new BadRequestException('Dosyadan metin okunamadı');
 
-    return DocumentAnalysisService.analyze(text);
+    return DocumentAnalysisService.analyze(
+      text.length > RAG_MIN_LENGTH ? await selectRelevantText(text) : text,
+    );
   }
 
   // Doküman metnini yapay zekâya analiz ettirir ve şemaya uygun sonucu döner
