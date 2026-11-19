@@ -1,5 +1,6 @@
-const CHUNK_SIZE = 2000;
-const CHUNK_OVERLAP = 200;
+// Her parça bir embedding isteğidir; ücretsiz hesabın günlük isteği az olduğu için parçalar büyük tutulur
+const CHUNK_SIZE = 8000;
+const CHUNK_OVERLAP = 800;
 
 // Kesim noktası olarak tercih edilen ayraçlar: önce paragraf, sonra cümle sonu, en son boşluk
 const BREAK_PATTERNS = [/\n\n/g, /[.!?]\s/g, /\s/g];

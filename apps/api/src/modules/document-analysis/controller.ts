@@ -1,5 +1,5 @@
 import { Elysia } from 'elysia';
-import { auth } from '../auth';
+import { auth, dtoWithPermission, PERMISSIONS } from '../auth';
 import { documentAnalysisDto } from './dtos';
 import { DocumentAnalysisService } from './service';
 
@@ -11,5 +11,5 @@ export const documentAnalysisController = new Elysia({
   .post(
     '/',
     async ({ body }) => DocumentAnalysisService.analyzeFile(body.file),
-    documentAnalysisDto,
+    dtoWithPermission(documentAnalysisDto, PERMISSIONS.FILE_LIBRARY_ASSETS.CREATE),
   );

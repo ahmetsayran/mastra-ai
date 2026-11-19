@@ -31,6 +31,15 @@ export const FILE_LIBRARY_ASSET_DOCUMENT_RULES = {
   maxSize: 50 * 1024 * 1024, // 50MB
 };
 
+// Doküman analizi: sadece metni okunabilen PDF ve DOCX
+export const FILE_LIBRARY_ASSET_PROJECT_DOCUMENT_RULES = {
+  ...FILE_LIBRARY_ASSET_DOCUMENT_RULES,
+  allowedMimeTypes: [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ],
+};
+
 export const FILE_LIBRARY_ASSET_TYPE_RULES = {
   //PRODUCT_IMAGE
   [FileLibraryAssetType.PRODUCT_IMAGE]: {
@@ -56,6 +65,11 @@ export const FILE_LIBRARY_ASSET_TYPE_RULES = {
   [FileLibraryAssetType.SCHOOL_BRAND_LOGO]: {
     validationRules: FILE_LIBRARY_ASSET_IMAGE_RULES,
     pathPrefix: ['school-brands', 'logos'],
+  },
+  //PROJECT_DOCUMENT
+  [FileLibraryAssetType.PROJECT_DOCUMENT]: {
+    validationRules: FILE_LIBRARY_ASSET_PROJECT_DOCUMENT_RULES,
+    pathPrefix: ['projects', 'documents'],
   },
 };
 

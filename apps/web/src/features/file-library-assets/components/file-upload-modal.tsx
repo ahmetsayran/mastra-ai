@@ -32,6 +32,7 @@ const FileLibraryAssetTypeEnum = {
   SCHOOL_LOGO: 'SCHOOL_LOGO',
   PRODUCT_BRAND_LOGO: 'PRODUCT_BRAND_LOGO',
   SCHOOL_BRAND_LOGO: 'SCHOOL_BRAND_LOGO',
+  PROJECT_DOCUMENT: 'PROJECT_DOCUMENT',
 } satisfies Record<FileLibraryAssetCreateInput["type"], FileLibraryAssetCreateInput["type"]>;
 
 

@@ -38,3 +38,6 @@ yarn-error.log*
 
 # Mastra agent workspace (agent'ın oluşturduğu dosyalar)
 apps/mastra/workspace
+
+# Yüklenen dosyalar (dosya kütüphanesi)
+/storage

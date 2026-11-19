@@ -70,6 +70,7 @@ enum FileLibraryAssetType {
   SCHOOL_LOGO
   PRODUCT_BRAND_LOGO
   SCHOOL_BRAND_LOGO
+  PROJECT_DOCUMENT
 
   @@map("file_library_asset_type")
 }

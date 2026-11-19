@@ -1,6 +1,4 @@
 import { inflateRawSync } from 'node:zlib';
-import { FileLibraryAssetMimeType } from '@onlyjs/db/client';
-import { pdfService } from '../file-library-assets/services/pdf.service';
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_ENTRY_SIGNATURE = 0x02014b50;
@@ -53,40 +51,49 @@ const decodeXmlEntities = (text: string) =>
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, '&');
 
-const extractDocxText = (buffer: Buffer): string => {
-  let xml: Buffer | null;
-  try {
-    xml = readZipEntry(buffer, 'word/document.xml');
-  } catch (error) {
-    console.error('❌ DOCX text extraction failed:', error);
-    return '';
-  }
-  if (!xml) return '';
-
-  const text = xml
-    .toString('utf8')
-    .replace(/<w:tab\s*\/>/g, '\t')
-    .replace(/<w:(br|cr)\s*\/>/g, '\n')
-    .replace(/<\/w:p>/g, '\n')
-    .replace(/<[^>]+>/g, '');
-
-  return decodeXmlEntities(text).trim();
-};
-
 /**
- * PDF veya DOCX dosyasından düz metni çıkarır.
- * Desteklenmeyen türde veya okunamayan dosyada boş metin döner.
+ * DOCX işleme için singleton service
+ * DOCX bir zip dosyasıdır; paket kullanmadan içindeki word/document.xml'den text extraction yapar
  */
-export const extractDocumentText = async (
-  buffer: Buffer,
-  mimeType: FileLibraryAssetMimeType,
-): Promise<string> => {
-  if (mimeType === FileLibraryAssetMimeType.DOCUMENT_PDF) {
-    const text = await pdfService.extractTextFromBuffer(buffer, { mergePages: true });
-    return text.trim();
+export class DOCXService {
+  private static instance: DOCXService;
+
+  private constructor() {}
+
+  /**
+   * Singleton instance'ını döndürür
+   */
+  public static getInstance(): DOCXService {
+    if (!DOCXService.instance) {
+      DOCXService.instance = new DOCXService();
+    }
+    return DOCXService.instance;
   }
-  if (mimeType === FileLibraryAssetMimeType.DOCUMENT_DOCX) {
-    return extractDocxText(buffer);
+
+  /**
+   * Buffer'dan DOCX text'ini extract eder
+   * @param docxBuffer - DOCX dosyasının Buffer'ı
+   * @returns DOCX'ten çıkarılan text (okunamazsa boş string)
+   */
+  public async extractTextFromBuffer(docxBuffer: Buffer): Promise<string> {
+    try {
+      const xml = readZipEntry(docxBuffer, 'word/document.xml');
+      if (!xml) return '';
+
+      const text = xml
+        .toString('utf8')
+        .replace(/<w:tab\s*\/>/g, '\t')
+        .replace(/<w:(br|cr)\s*\/>/g, '\n')
+        .replace(/<\/w:p>/g, '\n')
+        .replace(/<[^>]+>/g, '');
+
+      return decodeXmlEntities(text).trim();
+    } catch (error) {
+      console.error('❌ DOCX text extraction failed:', error);
+      return '';
+    }
   }
-  return '';
-};
+}
+
+// Convenience export - singleton instance
+export const docxService = DOCXService.getInstance();
