@@ -1,27 +1,13 @@
-import type { JSONSchema7 } from 'json-schema';
+import { type Static, t } from 'elysia';
 
-// Analiz sonucunun biçimi: structured output bu şemaya göre üretilir
-export const DOCUMENT_ANALYSIS_SCHEMA: JSONSchema7 = {
-  type: 'object',
-  properties: {
-    projectPurpose: { type: 'string', description: 'Projenin amacı' },
-    requirements: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Projenin gereksinimleri',
-    },
-    actionItems: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Projede yapılması gereken aksiyonlar',
-    },
+// Analiz sonucunun biçimi: hem structured output hem de endpoint cevabı bu şemayı kullanır
+export const documentAnalysisSchema = t.Object(
+  {
+    projectPurpose: t.String({ description: 'Projenin amacı' }),
+    requirements: t.Array(t.String(), { description: 'Projenin gereksinimleri' }),
+    actionItems: t.Array(t.String(), { description: 'Projede yapılması gereken aksiyonlar' }),
   },
-  required: ['projectPurpose', 'requirements', 'actionItems'],
-  additionalProperties: false,
-};
+  { additionalProperties: false },
+);
 
-export type DocumentAnalysis = {
-  projectPurpose: string;
-  requirements: string[];
-  actionItems: string[];
-};
+export type DocumentAnalysis = Static<typeof documentAnalysisSchema>;

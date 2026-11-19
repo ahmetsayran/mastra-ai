@@ -1,5 +1,6 @@
-import { MastraClient, RequestContext } from '@mastra/client-js';
+import { RequestContext } from '@mastra/client-js';
 import { nanoid } from 'nanoid';
+import { mastraClient as client } from '../../core/mastra-client';
 import {
   BadGatewayException,
   BadRequestException,
@@ -78,12 +79,6 @@ const isUnreachable = (error: unknown) => {
   const { code, message } = (error ?? {}) as { code?: string; message?: string };
   return UNREACHABLE_CODES.has(code ?? '') || /fetch failed|Unable to connect/i.test(message ?? '');
 };
-
-const client = new MastraClient({
-  baseUrl: process.env.MASTRA_URL || 'http://localhost:4111',
-  // Varsayılan 3 tekrar, kalıcı hatalarda (ör. eksik API anahtarı) kullanıcıyı uzun süre bekletiyor
-  retries: 1,
-});
 
 export abstract class AiService {
   // Araçlar API'yi kullanıcı adına çağırırken oturum çerezine ihtiyaç duyar

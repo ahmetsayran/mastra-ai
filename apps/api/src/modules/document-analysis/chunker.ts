@@ -1,5 +1,5 @@
-export const CHUNK_SIZE = 2000;
-export const CHUNK_OVERLAP = 200;
+const CHUNK_SIZE = 2000;
+const CHUNK_OVERLAP = 200;
 
 // Kesim noktası olarak tercih edilen ayraçlar: önce paragraf, sonra cümle sonu, en son boşluk
 const BREAK_PATTERNS = [/\n\n/g, /[.!?]\s/g, /\s/g];

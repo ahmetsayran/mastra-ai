@@ -1,9 +1,6 @@
 import { inflateRawSync } from 'node:zlib';
-import { PDFService } from '../file-library-assets/services/pdf.service';
-
-export const PDF_MIME_TYPE = 'application/pdf';
-export const DOCX_MIME_TYPE =
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+import { FileLibraryAssetMimeType } from '@onlyjs/db/client';
+import { pdfService } from '../file-library-assets/services/pdf.service';
 
 const EOCD_SIGNATURE = 0x06054b50;
 const CENTRAL_ENTRY_SIGNATURE = 0x02014b50;
@@ -57,7 +54,13 @@ const decodeXmlEntities = (text: string) =>
     .replace(/&amp;/g, '&');
 
 const extractDocxText = (buffer: Buffer): string => {
-  const xml = readZipEntry(buffer, 'word/document.xml');
+  let xml: Buffer | null;
+  try {
+    xml = readZipEntry(buffer, 'word/document.xml');
+  } catch (error) {
+    console.error('❌ DOCX text extraction failed:', error);
+    return '';
+  }
   if (!xml) return '';
 
   const text = xml
@@ -74,12 +77,15 @@ const extractDocxText = (buffer: Buffer): string => {
  * PDF veya DOCX dosyasından düz metni çıkarır.
  * Desteklenmeyen türde veya okunamayan dosyada boş metin döner.
  */
-export const extractDocumentText = async (buffer: Buffer, mimeType: string): Promise<string> => {
-  if (mimeType === PDF_MIME_TYPE) {
-    const text = await PDFService.getInstance().extractTextFromBuffer(buffer, { mergePages: true });
+export const extractDocumentText = async (
+  buffer: Buffer,
+  mimeType: FileLibraryAssetMimeType,
+): Promise<string> => {
+  if (mimeType === FileLibraryAssetMimeType.DOCUMENT_PDF) {
+    const text = await pdfService.extractTextFromBuffer(buffer, { mergePages: true });
     return text.trim();
   }
-  if (mimeType === DOCX_MIME_TYPE) {
+  if (mimeType === FileLibraryAssetMimeType.DOCUMENT_DOCX) {
     return extractDocxText(buffer);
   }
   return '';

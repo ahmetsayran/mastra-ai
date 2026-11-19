@@ -4,6 +4,7 @@ import { TaskSignalProvider } from '@mastra/core/signals';
 import { askUserTool, webFetchTool } from '@mastra/core/tools';
 import { LocalFilesystem, LocalSandbox, WORKSPACE_TOOLS, Workspace } from '@mastra/core/workspace';
 import { Memory } from '@mastra/memory';
+import { ASSISTANT_MODEL } from '../model';
 import { startScheduleTool, stopScheduleTool } from '../tools/schedule-tools';
 
 const workspacePath = 'workspace';
@@ -52,7 +53,7 @@ Ask concise questions when something is unclear or a good question could surface
 
 For local file changes, end with a plain-text URL using ${pathToFileURL(`${workspacePath}/`).href}; avoid Markdown links, localhost, /workspace, relative paths, and static-file servers.
 `,
-  model: process.env.ASSISTANT_MODEL || 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free',
+  model: ASSISTANT_MODEL,
   defaultOptions: {
     maxSteps: 100,
     autoResumeSuspendedTools: true,
@@ -61,7 +62,7 @@ For local file changes, end with a plain-text URL using ${pathToFileURL(`${works
     options: {
       generateTitle: true,
       observationalMemory: {
-        model: process.env.ASSISTANT_MODEL || 'openrouter/nvidia/nemotron-3-ultra-550b-a55b:free',
+        model: ASSISTANT_MODEL,
       },
     },
   }),

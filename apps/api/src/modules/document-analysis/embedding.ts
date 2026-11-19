@@ -1,6 +1,6 @@
+import { MASTRA_URL } from '../../core/mastra-client';
 import { BadGatewayException } from '../../utils';
 
-const MASTRA_URL = process.env.MASTRA_URL || 'http://localhost:4111';
 // Tek istekte çok metin göndermek Mastra'da zaman aşımına yol açtığı için gruplar halinde gönderilir
 const BATCH_SIZE = 10;
 
