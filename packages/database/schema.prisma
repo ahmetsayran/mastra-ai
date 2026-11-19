@@ -329,32 +329,6 @@ model PostComment {
   @@map("post_comments")
 }
 
-model Document {
-  /// @prismabox.hide
-  id Int @id @default(autoincrement())
-
-  chunks DocumentChunk[]
-
-  @@map("documents")
-}
-
-model DocumentChunk {
-  /// @prismabox.hide
-  id Int @id @default(autoincrement())
-
-  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
-  /// @prismabox.hide
-  documentId Int      @map("document_id")
-
-  content String @db.Text
-
-  /// @prismabox.hide
-  embedding Unsupported("vector")
-
-  @@index([documentId])
-  @@map("document_chunks")
-}
-
 model UserRole {
   /// @prismabox.hide
   id Int @id @default(autoincrement())
