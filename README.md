@@ -43,7 +43,7 @@ Projeyi bilgisayarınızda çalıştırabilmeniz için ilk olarak şu programlar
 
 3. **PostgreSQL (Veritabanı)**: Verilerin kaydedileceği yer.
    - Bilgisayarınıza [PostgreSQL](https://www.postgresql.org/download/) indirip kurun ("İleri, İleri" diyerek kurabilirsiniz).
-   - Kurulum sırasında sizden bir şifre isteyecektir. Bu şifreyi **`postgres`** olarak ayarlarsanız kurulumda hiçbir dosya değiştirmenize gerek kalmaz.
+   - Kurulum sırasında sizden bir şifre isteyecektir. Seçtiğiniz şifreyi not edin, kurulum adımlarında `.env` dosyasına yazacaksınız.
 
 4. **Git**: Kod klasörünü bilgisayara indirebilmek için.
    - [git-scm.com](https://git-scm.com) adresinden indirip kolayca kurabilirsiniz.
@@ -80,6 +80,7 @@ cp config/apps/mastra/.env.example config/apps/mastra/.env
 
 Kopyaladıktan sonra şunlara dikkat edin:
 - **`config/apps/mastra/.env`**: `OPENROUTER_API_KEY=` satırına anahtarınızı yazın (aşağıdaki **AI Asistan** bölümüne bakın).
+- **`config/apps/api/.env`**: `DATABASE_URL` satırındaki `postgres:...@` kısmında, ikinci iki nokta ile `@` arasına PostgreSQL kurulumunda belirlediğiniz şifreyi yazın.
 - **`config/apps/api/.env`**: `BETTER_AUTH_SECRET=` satırına uzun, rastgele bir metin yazın. Bilgisayarınızda denerken boş kalsa da çalışır, ama gerçek bir sunucuda mutlaka güçlü bir değer olmalıdır.
 - **Redis gerekmez.** `REDIS_URL` satırı kapalı (başında `#`) gelir, öyle bırakın. Redis kurulu değilken bu satırı açarsanız giriş yaptıktan hemen sonra oturum düşer.
 
@@ -209,7 +210,7 @@ bun install
 
 ### 💡 "Database Connection" (Veritabanı Bağlantı) Hatası
 - PostgreSQL veritabanını kurduğunuzdan ve arka planda açık olduğundan emin olun.
-- Şifrenizi kurulumda `postgres` yapmadıysanız, `config/apps/api/.env` dosyasına girip oradaki `postgresql://postgres:postgres@localhost...` yazan kısımdaki ikinci `postgres`'i koyduğunuz kendi şifrenizle değiştirin.
+- `config/apps/api/.env` dosyasındaki `DATABASE_URL` içinde PostgreSQL kurulumunda belirlediğiniz şifrenin yazdığından emin olun.
 
 ### 💡 Giriş ekranında `admin@example.com` ile giriş yapamıyorum
 Örnek veriler eklenmemiş olabilir. Şunu çalıştırın:
