@@ -180,7 +180,7 @@ Doküman yaklaşık **100 bin karakteri** (yaklaşık 50 sayfa) geçerse tamamı
 2. Parçalar vektöre çevrilir (OpenRouter'ın ücretsiz `nvidia/nemotron-3.5-embed-8b:free` modeli) ve Mastra'nın veritabanında (`mastra.db`) dokümana özel bir indekste saklanır.
 3. "Amaç", "gereksinimler" ve "yapılacak işler" sorularına en çok benzeyen parçalar bulunur ve sadece onlar analiz edilir.
 
-Her parça bir OpenRouter isteği harcar. Ücretsiz günlük hakka sığması için yaklaşık **300 bin karaktere** (yaklaşık 150 sayfa) kadar doküman analiz edilebilir; daha büyüğü için OpenRouter'a kredi yüklemek gerekir.
+Her parça bir OpenRouter isteği harcar. Ücretsiz embedding servisi bazen yavaştır (parça başına 20-30 saniyeye kadar), bu yüzden uzun bir dokümanın analizi birkaç dakika sürebilir. Ücretsiz günlük hakka sığması için yaklaşık **300 bin karaktere** (yaklaşık 150 sayfa) kadar doküman analiz edilebilir; daha büyüğü için OpenRouter'a kredi yüklemek gerekir.
 
 ---
 

@@ -17,8 +17,8 @@ const CHUNKS_PER_QUESTION = 3;
 // Vektörle birlikte saklanan parça bilgisi
 type ChunkMetadata = { index: number; content: string };
 
-// Tek istekte çok parça göndermek Mastra'da zaman aşımına yol açtığı için gruplar halinde işlenir
-const BATCH_SIZE = 10;
+// Mastra istekleri 3 dakikada zaman aşımına uğrar; ücretsiz embedding yavaş olabildiği için küçük gruplar halinde işlenir
+const BATCH_SIZE = 3;
 
 // Uzun metni parçalar, vektörlerini dokümanın kendi indeksine kaydeder; her soru için en benzer
 // parçaları Mastra'nın vektör aramasıyla bulup dokümandaki sırasıyla birleştirir
